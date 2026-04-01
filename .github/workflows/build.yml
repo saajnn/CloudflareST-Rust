@@ -35,11 +35,11 @@ on:
       build_linux_amd64_gnu:
         description: '编译 Linux AMD64 动态链接版本'
         type: boolean
-        default: true
+        default: false
       build_linux_arm64_gnu:
         description: '编译 Linux ARM64 动态链接版本'
         type: boolean
-        default: true
+        default: false
       build_macos_amd64:
         description: '编译 MacOS AMD64 版本'
         type: boolean
@@ -62,12 +62,12 @@ jobs:
           # 根据用户输入动态构建矩阵
           arr=()
           [[ "${{ inputs.build_windows_amd64 }}" == true ]] && arr+=('{"os":"Windows","arch":"AMD64","target":"x86_64-pc-windows-msvc","runner":"windows-latest","bin":"${{ inputs.project_name }}.exe"}')
-          [[ "${{ inputs.build_windows_arm64 }}" == true ]] && arr+=('{"os":"Windows","arch":"ARM64","target":"aarch64-pc-windows-msvc","runner":"windows-latest","bin":"${{ inputs.project_name }}.exe"}')
+          [[ "${{ inputs.build_windows_arm64 }}" == true ]] && arr+=('{"os":"Windows","arch":"ARM64","target":"aarch64-pc-windows-msvc","runner":"windows-latest-arm","bin":"${{ inputs.project_name }}.exe"}')
           [[ "${{ inputs.build_linux_amd64 }}"   == true ]] && arr+=('{"os":"Linux","arch":"AMD64","target":"x86_64-unknown-linux-musl","runner":"ubuntu-latest","bin":"${{ inputs.project_name }}"}')
-          [[ "${{ inputs.build_linux_arm64 }}"   == true ]] && arr+=('{"os":"Linux","arch":"ARM64","target":"aarch64-unknown-linux-musl","runner":"ubuntu-latest","bin":"${{ inputs.project_name }}"}')
+          [[ "${{ inputs.build_linux_arm64 }}"   == true ]] && arr+=('{"os":"Linux","arch":"ARM64","target":"aarch64-unknown-linux-musl","runner":"ubuntu-24.04-arm","bin":"${{ inputs.project_name }}"}')
           [[ "${{ inputs.build_linux_amd64_gnu }}" == true ]] && arr+=('{"os":"Linux","arch":"AMD64_GNU","target":"x86_64-unknown-linux-gnu","runner":"ubuntu-latest","bin":"${{ inputs.project_name }}"}')
-          [[ "${{ inputs.build_linux_arm64_gnu }}" == true ]] && arr+=('{"os":"Linux","arch":"ARM64_GNU","target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","bin":"${{ inputs.project_name }}"}')
-          [[ "${{ inputs.build_macos_amd64 }}"   == true ]] && arr+=('{"os":"MacOS","arch":"AMD64","target":"x86_64-apple-darwin","runner":"macos-latest","bin":"${{ inputs.project_name }}"}')
+          [[ "${{ inputs.build_linux_arm64_gnu }}" == true ]] && arr+=('{"os":"Linux","arch":"ARM64_GNU","target":"aarch64-unknown-linux-gnu","runner":"ubuntu-24.04-arm","bin":"${{ inputs.project_name }}"}')
+          [[ "${{ inputs.build_macos_amd64 }}"   == true ]] && arr+=('{"os":"MacOS","arch":"AMD64","target":"x86_64-apple-darwin","runner":"macos-14","bin":"${{ inputs.project_name }}"}')
           [[ "${{ inputs.build_macos_arm64 }}"   == true ]] && arr+=('{"os":"MacOS","arch":"ARM64","target":"aarch64-apple-darwin","runner":"macos-latest","bin":"${{ inputs.project_name }}"}')
           echo "include=[$(IFS=,; echo "${arr[*]}")]" >> $GITHUB_OUTPUT
 
@@ -79,6 +79,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
+      max-parallel: 8
       matrix:
         include: ${{ fromJson(needs.matrix.outputs.include) }}
 
