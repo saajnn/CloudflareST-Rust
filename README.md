@@ -13,10 +13,10 @@
 
 <p align="center">
   <a href="https://github.com/GuangYu-yu/CloudflareST-Rust">
-    <img src="https://img.shields.io/github/stars/GuangYu-yu/CloudflareST-Rust?style=social" alt="GitHub Stars">
+    <img src="https://img.shields.io/github/stars/GuangYu-yu/CloudflareST-Rust?style=flat-square&label=Star&color=00ADD8&logo=github" alt="GitHub Stars">
   </a>
   <a href="https://github.com/GuangYu-yu/CloudflareST-Rust/forks">
-    <img src="https://img.shields.io/github/forks/GuangYu-yu/CloudflareST-Rust?style=social" alt="GitHub Forks">
+    <img src="https://img.shields.io/github/forks/GuangYu-yu/CloudflareST-Rust?style=flat-square&label=Fork&color=00ADD8&logo=github" alt="GitHub Forks">
   </a>
 </p>
 
