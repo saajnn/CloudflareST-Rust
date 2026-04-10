@@ -122,13 +122,6 @@ curl -s https://www.cloudflare-cn.com/ips-v4 -o ip.txt
 | `-sp` | 结果中带端口号 | 否 |
 | `-o` | 输出结果文件（文件名或文件路径） | result.csv |
 
-## 📥 下载链接
-
-| 架构 \ 平台 | Linux | Linux_GNU | MacOS | Windows |
-|:-----------|:------|:----------|:------|:--------|
-| AMD64 | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/Linux_AMD64/CloudflareST-Rust) | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/Linux_AMD64_GNU/CloudflareST-Rust) | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/MacOS_AMD64/CloudflareST-Rust) | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/Windows_AMD64/CloudflareST-Rust.exe) |
-| ARM64 | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/Linux_ARM64/CloudflareST-Rust) | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/Linux_ARM64_GNU/CloudflareST-Rust) | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/MacOS_ARM64/CloudflareST-Rust) | [下载](https://gitee.com/zhxdcyy/CloudflareST-Rust/raw/master/binaries/Windows_ARM64/CloudflareST-Rust.exe) |
-
 ## 📱 安装方法
 
 ### 安卓/OpenWrt 安装
