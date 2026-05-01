@@ -17,7 +17,7 @@ pub(crate) struct HttpingFactoryData {
     scheme: String,
     path: String,
     allowed_codes: Option<Arc<Vec<u16>>>,
-    host_header: String,
+    host_header: Arc<str>,
     global_client: Arc<crate::hyper::MyHyperClient>,
 }
 
@@ -35,8 +35,8 @@ impl common::PingMode for HttpingFactoryData {
         // 2. 构造 URI
         let uri: http::Uri = format!("{}://{}{}", self.scheme, addr, self.path).parse().unwrap();
 
-        let host_header = Arc::from(self.host_header.as_str());
-        let global_client = self.global_client.clone();
+        let host_header = self.host_header.clone();
+        let global_client = (*self.global_client).clone();
 
         Box::pin(async move {
             let ping_times = args.ping_times;
@@ -47,7 +47,6 @@ impl common::PingMode for HttpingFactoryData {
             // 4. 创建任务结构体并包装在 Arc 中
             let task = Arc::new(PingTask {
                 client,
-                httping_cf_colo: Arc::from(args.httping_cf_colo.as_str()),
                 host_header,
                 uri,
                 colo_filters,
@@ -83,8 +82,7 @@ impl common::PingMode for HttpingFactoryData {
 }
 
 struct PingTask {
-    client: Arc<crate::hyper::MyHyperClient>,
-    httping_cf_colo: Arc<str>,
+    client: crate::hyper::MyHyperClient,
     host_header: Arc<str>,
     uri: http::Uri,
     colo_filters: Arc<Vec<String>>,
@@ -125,7 +123,7 @@ impl PingTask {
             Some((delay, dc)) => {
                 if self.local_data_center.get().is_none() {
                     // 检查数据中心（Colo）是否符合过滤要求
-                    if !self.httping_cf_colo.is_empty() && !common::is_colo_matched(&dc, &self.colo_filters) {
+                    if !self.colo_filters.is_empty() && !common::is_colo_matched(&dc, &self.colo_filters) {
                         self.should_continue.store(false, Ordering::Relaxed);
                         return None;
                     }
@@ -177,7 +175,7 @@ pub(crate) fn new(args: Arc<Args>, sources: Vec<String>, timeout_flag: Arc<Atomi
         scheme: scheme.to_string(),
         path: path.to_string(),
         allowed_codes,
-        host_header,
+        host_header: host_header.into(),
         global_client: Arc::new(client),
     };
 
