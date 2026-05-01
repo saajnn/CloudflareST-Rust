@@ -197,7 +197,7 @@ impl<'a> DownloadTest<'a> {
             }
 
             // 获取IP地址和检查是否需要获取 colo
-            let need_colo = ping_result.data_center.is_empty();
+            let need_colo = ping_result.data_center.is_none();
 
             // 执行下载测速
             let conn = DownloadConnection {
@@ -222,9 +222,9 @@ impl<'a> DownloadTest<'a> {
             // 更新下载速度和可能的数据中心信息
             ping_result.download_speed = speed;
 
-            if ping_result.data_center.is_empty()
+            if ping_result.data_center.is_none()
                 && let Some(colo) = maybe_colo {
-                ping_result.data_center = colo;
+                ping_result.data_center = Some(colo);
             }
 
             // 检查速度是否符合要求
@@ -234,7 +234,7 @@ impl<'a> DownloadTest<'a> {
             };
 
             // 检查数据中心是否符合要求
-            let colo_match = colo_filters.is_empty() || common::is_colo_matched(&ping_result.data_center, &colo_filters);
+            let colo_match = colo_filters.is_empty() || common::is_colo_matched(ping_result.colo_str(), &colo_filters);
 
             // 更新已测试计数
             tested_count += 1;
@@ -297,7 +297,7 @@ async fn download_handler(
     behavior: DownloadBehavior,
     context: &DownloadContext,
     client: &crate::hyper::MyHyperClient,
-) -> (Option<f32>, Option<String>) {
+) -> (Option<f32>, Option<[u8; 3]>) {
     // 解构参数，提高代码可读性
     let DownloadConnection { uri, host, addr } = conn;
     let DownloadBehavior { duration: download_duration, need_colo, colo_filters } = behavior;
@@ -338,8 +338,8 @@ async fn download_handler(
                 return (None, None);
             }
             // 如果数据中心不符合要求，速度返回None，数据中心正常返回
-            if let Some(dc) = &data_center
-                && !colo_filters.is_empty() && !common::is_colo_matched(dc, &colo_filters) {
+            if let Some(_) = &data_center
+                && !colo_filters.is_empty() && !common::is_colo_matched(data_center.as_ref().map_or("", |b| std::str::from_utf8(b).unwrap()), &colo_filters) {
                 return (None, data_center);
             }
         }

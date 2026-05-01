@@ -212,16 +212,12 @@ impl IpBuffer {
     ) -> Self {
         let mut segments: Vec<Arc<IpSegment>> = Vec::new();
 
-        const CHUNK_SIZE: usize = 1024;
-
         if !single_ips.is_empty() {
-            for chunk in single_ips.chunks(CHUNK_SIZE) {
-                segments.push(Arc::new(IpSegment::Static {
-                    ips: chunk.to_vec(),
-                    cursor: AtomicUsize::new(0),
-                    exhausted_notified: AtomicBool::new(false),
-                }));
-            }
+            segments.push(Arc::new(IpSegment::Static {
+                ips: single_ips,
+                cursor: AtomicUsize::new(0),
+                exhausted_notified: AtomicBool::new(false),
+            }));
         }
 
         for cidr in cidr_states {

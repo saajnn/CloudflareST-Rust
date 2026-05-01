@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use http::Method;
@@ -52,7 +52,7 @@ impl common::PingMode for HttpingFactoryData {
                 colo_filters,
                 allowed_codes,
                 should_continue: AtomicBool::new(true),
-                local_data_center: std::sync::OnceLock::new(),
+                local_data_center: OnceLock::new(),
             });
 
             // 5. 执行 ping 循环
@@ -88,7 +88,7 @@ struct PingTask {
     colo_filters: Arc<Vec<String>>,
     allowed_codes: Option<Arc<Vec<u16>>>,
     should_continue: AtomicBool,
-    local_data_center: std::sync::OnceLock<String>,
+    local_data_center: OnceLock<[u8; 3]>,
 }
 
 impl PingTask {
@@ -123,7 +123,7 @@ impl PingTask {
             Some((delay, dc)) => {
                 if self.local_data_center.get().is_none() {
                     // 检查数据中心（Colo）是否符合过滤要求
-                    if !self.colo_filters.is_empty() && !common::is_colo_matched(&dc, &self.colo_filters) {
+                    if !self.colo_filters.is_empty() && !common::is_colo_matched(std::str::from_utf8(&dc).unwrap(), &self.colo_filters) {
                         self.should_continue.store(false, Ordering::Relaxed);
                         return None;
                     }

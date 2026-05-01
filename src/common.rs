@@ -11,15 +11,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use hyper::Response as HyperResponse;
 
-// 定义通用的 PingData 结构体
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct PingData {
     pub(crate) addr: SocketAddr,
     pub(crate) sent: u16,
     pub(crate) received: u16,
     pub(crate) delay: f32,
     pub(crate) download_speed: Option<f32>,
-    pub(crate) data_center: String,
+    pub(crate) data_center: Option<[u8; 3]>,
 }
 
 impl PingData {
@@ -30,7 +29,7 @@ impl PingData {
             received,
             delay,
             download_speed: None,
-            data_center: String::new(),
+            data_center: None,
         }
     }
 
@@ -47,6 +46,10 @@ impl PingData {
         } else {
             self.addr.ip().to_string()
         }
+    }
+
+    pub(crate) fn colo_str(&self) -> &str {
+        self.data_center.as_ref().map_or("", |b| std::str::from_utf8(b).unwrap())
     }
 }
 
@@ -117,14 +120,10 @@ pub(crate) fn calculate_precise_delay(total_delay_ms: f32, success_count: u16) -
 }
 
 /// 从响应中提取数据中心信息
-pub(crate) fn extract_data_center(resp: &HyperResponse<hyper::body::Incoming>) -> Option<String> {
-    resp.headers()
-        .get("cf-ray")?
-        .to_str()
-        .ok()?
-        .rsplit('-')
-        .next()
-        .map(str::to_owned)
+pub(crate) fn extract_data_center(resp: &HyperResponse<hyper::body::Incoming>) -> Option<[u8; 3]> {
+    let s = resp.headers().get("cf-ray")?.to_str().ok()?.rsplit('-').next()?;
+    let b = s.as_bytes();
+    (b.len() == 3).then(|| [b[0], b[1], b[2]])
 }
 
 /// Ping 初始化
@@ -188,11 +187,11 @@ impl Clone for Box<dyn PingMode> {
     }
 }
 
-pub(crate) fn build_ping_data_result(addr: SocketAddr, sent: u16, received: u16, avg_delay_ms: f32, data_center: Option<String>) -> Option<PingData> {
+pub(crate) fn build_ping_data_result(addr: SocketAddr, sent: u16, received: u16, avg_delay_ms: f32, data_center: Option<[u8; 3]>) -> Option<PingData> {
     if avg_delay_ms > 0.0 {
         let mut data = PingData::new(addr, sent, received, avg_delay_ms);
         if let Some(dc) = data_center {
-            data.data_center = dc;
+            data.data_center = Some(dc);
         }
         Some(data)
     } else {
@@ -300,9 +299,7 @@ pub(crate) fn parse_colo_filters(colo_filter: &str) -> Vec<String> {
 pub(crate) fn is_colo_matched(data_center: &str, colo_filters: &[String]) -> bool {
     !data_center.is_empty()
         && (colo_filters.is_empty()
-            || colo_filters
-                .iter()
-                .any(|filter| filter.eq_ignore_ascii_case(data_center)))
+            || colo_filters.iter().any(|f| f.eq_ignore_ascii_case(data_center)))
 }
 
 /// 判断测试结果是否符合筛选条件
