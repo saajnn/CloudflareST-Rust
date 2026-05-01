@@ -128,7 +128,7 @@ pub(crate) fn extract_data_center(resp: &HyperResponse<hyper::body::Incoming>) -
 }
 
 /// Ping 初始化
-pub(crate) async fn create_base_ping(args: Arc<Args>, sources: Vec<String>, timeout_flag: Arc<AtomicBool>) -> BasePing {
+pub(crate) fn create_base_ping(args: Arc<Args>, sources: Vec<String>, timeout_flag: Arc<AtomicBool>) -> BasePing {
     // 处理 IP 源并创建缓冲区
     let (single_ips, cidr_states, total_expected) = crate::ip::process_ip_sources(sources, &args);
     let ip_buffer = IpBuffer::new(cidr_states, single_ips, total_expected, args.tcp_port);
@@ -149,7 +149,7 @@ pub(crate) async fn run_ping_loop<F, Fut>(
     ping_times: u16,
     wait_ms: u64,
     mut test_fn: F,
-) -> Option<f32>
+) -> (Option<f32>, u16)
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Option<f32>>,
@@ -169,7 +169,7 @@ where
 
     // 计算平均延迟
     let avg_delay_ms = calculate_precise_delay(total_delay_ms, recv);
-    (recv > 0).then_some(avg_delay_ms)
+    ((recv > 0).then_some(avg_delay_ms), recv)
 }
 
 pub(crate) trait PingMode: Send + 'static {
@@ -188,9 +188,9 @@ impl Clone for Box<dyn PingMode> {
     }
 }
 
-pub(crate) fn build_ping_data_result(addr: SocketAddr, ping_times: u16, avg_delay_ms: f32, data_center: Option<String>) -> Option<PingData> {
+pub(crate) fn build_ping_data_result(addr: SocketAddr, sent: u16, received: u16, avg_delay_ms: f32, data_center: Option<String>) -> Option<PingData> {
     if avg_delay_ms > 0.0 {
-        let mut data = PingData::new(addr, ping_times, ping_times, avg_delay_ms);
+        let mut data = PingData::new(addr, sent, received, avg_delay_ms);
         if let Some(dc) = data_center {
             data.data_center = dc;
         }

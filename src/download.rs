@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use http_body::Body;
@@ -24,12 +24,12 @@ use crate::hyper::{self, parse_url_to_uri};
 struct DownloadHandler {
     data_received: u64,
     last_update: Instant,
-    current_speed: Arc<AtomicU32>,
+    current_speed: Arc<AtomicU64>,
     speed_samples: VecDeque<(Instant, u64)>,
 }
 
 impl DownloadHandler {
-    fn new(current_speed: Arc<AtomicU32>) -> Self {
+    fn new(current_speed: Arc<AtomicU64>) -> Self {
         let now = Instant::now();
         Self {
             data_received: 0,
@@ -82,7 +82,7 @@ impl DownloadHandler {
             self.cleanup_old_samples(window_start);
             
             let speed = self.calculate_speed();
-            self.current_speed.store((speed * 100.0) as u32, Ordering::Relaxed);
+            self.current_speed.store((speed * 100.0) as u64, Ordering::Relaxed);
             self.last_update = Instant::now();
         }
     }
@@ -99,7 +99,7 @@ pub(crate) struct DownloadTest<'a> {
     uri: http::Uri,
     host: String,
     bar: Arc<Bar>,
-    current_speed: Arc<AtomicU32>,
+    current_speed: Arc<AtomicU64>,
     colo_filter: Arc<Vec<String>>,
     ping_results: Vec<PingData>,
     timeout_flag: Arc<AtomicBool>,
@@ -142,7 +142,7 @@ impl<'a> DownloadTest<'a> {
             uri,
             host,
             bar: Arc::new(Bar::new(test_num, "", "MB/s")),
-            current_speed: Arc::new(AtomicU32::new(0)),
+            current_speed: Arc::new(AtomicU64::new(0)),
             colo_filter: Arc::new(common::parse_colo_filters(&args.httping_cf_colo)),
             ping_results,
             timeout_flag,
@@ -154,7 +154,7 @@ impl<'a> DownloadTest<'a> {
         // 数据中心过滤条件
         let colo_filters = self.colo_filter.clone();
 
-        let current_speed_arc: Arc<AtomicU32> = self.current_speed.clone();
+        let current_speed_arc: Arc<AtomicU64> = self.current_speed.clone();
         let bar_arc = self.bar.clone();
         let timeout_flag_clone = self.timeout_flag.clone();
         
@@ -287,7 +287,7 @@ pub(crate) struct DownloadBehavior {
 }
 
 pub(crate) struct DownloadContext {
-    pub current_speed: Arc<AtomicU32>,
+    pub current_speed: Arc<AtomicU64>,
     pub timeout_flag: Arc<AtomicBool>,
 }
 

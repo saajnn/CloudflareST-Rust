@@ -57,7 +57,7 @@ impl common::PingMode for HttpingFactoryData {
             });
 
             // 5. 执行 ping 循环
-            let avg_delay = common::run_ping_loop(ping_times, 200, {
+            let (avg_delay, recv) = common::run_ping_loop(ping_times, 200, {
                 let task = task.clone();
                 move || {
                     let task = task.clone();
@@ -73,7 +73,7 @@ impl common::PingMode for HttpingFactoryData {
             }
 
             let data_center = task.local_data_center.get().cloned();
-            common::build_ping_data_result(addr, ping_times, avg_delay.unwrap_or(0.0), data_center)
+            common::build_ping_data_result(addr, ping_times, recv, avg_delay.unwrap_or(0.0), data_center)
         })
     }
     
@@ -164,9 +164,7 @@ pub(crate) fn new(args: Arc<Args>, sources: Vec<String>, timeout_flag: Arc<Atomi
 
     common::print_speed_test_info("HTTPing", &args);
 
-    let base = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(common::create_base_ping(args.clone(), sources, timeout_flag))
-    });
+    let base = common::create_base_ping(args.clone(), sources, timeout_flag);
 
     let client = crate::hyper::build_hyper_client(
         &args.interface_config,

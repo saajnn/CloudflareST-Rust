@@ -34,7 +34,7 @@ impl PingMode for IcmpingFactoryData {
         Box::pin(async move {
             let ping_times = args.ping_times;
             
-            let avg_delay = common::run_ping_loop(ping_times, 0, || {
+            let (avg_delay, recv) = common::run_ping_loop(ping_times, 0, || {
                 let client = client.clone();
                 let args = args.clone();
                 async move {
@@ -44,7 +44,7 @@ impl PingMode for IcmpingFactoryData {
                 }
             }).await;
 
-            common::build_ping_data_result(addr, ping_times, avg_delay.unwrap_or(0.0), None)
+            common::build_ping_data_result(addr, ping_times, recv, avg_delay.unwrap_or(0.0), None)
         })
     }
     
@@ -56,9 +56,7 @@ impl PingMode for IcmpingFactoryData {
 pub(crate) fn new(args: Arc<Args>, sources: Vec<String>, timeout_flag: Arc<AtomicBool>) -> Option<CommonPing> {
     common::print_speed_test_info("ICMP-Ping", &args);
 
-    let base = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(common::create_base_ping(args.clone(), sources, timeout_flag))
-    });
+    let base = common::create_base_ping(args.clone(), sources, timeout_flag);
 
     let client_v4 = Arc::new(Client::new(&Config::default()).ok()?);
     let client_v6 = Arc::new(Client::new(&Config::builder().kind(ICMP::V6).build()).ok()?);
