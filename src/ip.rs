@@ -4,9 +4,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-use std::thread;
 
 use crate::args::Args;
 
@@ -80,16 +79,11 @@ impl IpCidr {
 /// IP 地址缓冲区
 pub(crate) struct IpBuffer {
     total_expected: usize,
-    segments: AtomicPtr<Vec<Arc<IpSegment>>>,
+    segments: Arc<Vec<Arc<IpSegment>>>,
     cursor: AtomicUsize,
     active_count: AtomicUsize,
-    initial_len: usize,
-    reading_threads: AtomicUsize,
     tcp_port: u16,
 }
-
-unsafe impl Send for IpBuffer {}
-unsafe impl Sync for IpBuffer {}
 
 pub(crate) enum IpSegment {
     Static {
@@ -114,15 +108,6 @@ impl IpSegment {
         }
     }
 
-    fn is_exhausted(&self) -> bool {
-        match self {
-            IpSegment::Static { ips, cursor, .. } => {
-                cursor.load(Ordering::Relaxed) >= ips.len()
-            }
-            IpSegment::Generator { cidr, .. } => cidr.is_exhausted(),
-        }
-    }
-
     fn mark_dead_once(&self) -> bool {
         match self {
             IpSegment::Static { exhausted_notified, .. } | 
@@ -141,7 +126,6 @@ pub(crate) struct CidrState {
     start: u128,
     last_size: u128,
     index_counter: AtomicUsize,
-    is_finished: AtomicBool,
 }
 
 impl CidrState {
@@ -161,7 +145,6 @@ impl CidrState {
             start,
             last_size,
             index_counter: AtomicUsize::new(0),
-            is_finished: AtomicBool::new(false),
         }
     }
 
@@ -170,7 +153,6 @@ impl CidrState {
         let current_index = self.index_counter.fetch_add(1, Ordering::Relaxed);
 
         if current_index >= self.total_count {
-            self.is_finished.store(true, Ordering::Relaxed);
             return None;
         }
 
@@ -198,9 +180,6 @@ impl CidrState {
         Some(SocketAddr::new(ip_addr, tcp_port))
     }
 
-    fn is_exhausted(&self) -> bool {
-        self.is_finished.load(Ordering::Relaxed)
-    }
 }
 
 impl IpBuffer {
@@ -228,15 +207,12 @@ impl IpBuffer {
         }
 
         let initial_len = segments.len();
-        let segments_arc = Arc::new(segments);
 
         Self {
             total_expected,
-            segments: AtomicPtr::new(Arc::into_raw(segments_arc) as *mut _),
+            segments: Arc::new(segments),
             cursor: AtomicUsize::new(0),
             active_count: AtomicUsize::new(initial_len),
-            initial_len,
-            reading_threads: AtomicUsize::new(0),
             tcp_port,
         }
     }
@@ -248,22 +224,9 @@ impl IpBuffer {
                 return None;
             }
 
-            self.reading_threads.fetch_add(1, Ordering::Relaxed);
-
-            let ptr = self.segments.load(Ordering::Acquire);
-            if ptr.is_null() {
-                self.reading_threads.fetch_sub(1, Ordering::Relaxed);
-                return None;
-            }
-
-            let current_vec = unsafe {
-                Arc::increment_strong_count(ptr);
-                Arc::from_raw(ptr)
-            };
-
-            self.reading_threads.fetch_sub(1, Ordering::Relaxed);
-
+            let current_vec = self.segments.clone();
             let segments_len = current_vec.len();
+
             if segments_len == 0 {
                 return None;
             }
@@ -274,47 +237,18 @@ impl IpBuffer {
                 let idx = (start_idx + i) % segments_len;
                 let segment = &current_vec[idx];
 
-                if segment.is_exhausted() {
-                    continue;
-                }
-
                 if let Some(ip) = segment.next_ip(self.tcp_port) {
                     return Some(ip);
                 }
 
                 if segment.mark_dead_once() {
-                    let new_count = self.active_count.fetch_sub(1, Ordering::SeqCst) - 1;
-                    
-                    if new_count <= self.initial_len / 2 {
-                        self.try_reaping(ptr, &current_vec);
-                    }
+                    self.active_count.fetch_sub(1, Ordering::SeqCst);
                 }
             }
 
             if self.active_count.load(Ordering::Acquire) == 0 {
                 return None;
             }
-        }
-    }
-
-    fn try_reaping(&self, old_ptr: *mut Vec<Arc<IpSegment>>, current: &[Arc<IpSegment>]) {
-        let new_vec = current.iter().filter(|s| !s.is_exhausted()).cloned().collect::<Vec<_>>();
-
-        let new_arc = Arc::new(new_vec);
-        let new_ptr = Arc::into_raw(new_arc) as *mut _;
-
-        if self.segments.compare_exchange(
-            old_ptr,
-            new_ptr,
-            Ordering::SeqCst,
-            Ordering::Relaxed
-        ).is_ok() {
-            while self.reading_threads.load(Ordering::Acquire) > 0 {
-                thread::yield_now();
-            }
-            unsafe { Arc::from_raw(old_ptr); }
-        } else {
-            unsafe { Arc::from_raw(new_ptr); }
         }
     }
 
@@ -339,15 +273,6 @@ fn generate_refined_random(obj_addr: usize) -> u128 {
     x = x.swap_bytes();
 
     x as u128
-}
-
-impl Drop for IpBuffer {
-    fn drop(&mut self) {
-        let ptr = self.segments.load(Ordering::Acquire);
-        if !ptr.is_null() {
-            unsafe { Arc::from_raw(ptr); }
-        }
-    }
 }
 
 /// 收集 IP/CIDR 来源
